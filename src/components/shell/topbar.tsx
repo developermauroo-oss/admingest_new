@@ -8,6 +8,8 @@ type ShellTopbarProps = {
   email: string;
   name: string;
   role: "owner" | "zonal" | "supervisor" | null;
+  position: string | null;
+  stores: { id: string; nombre: string }[];
   moduleTitle: string;
   viewTitle?: string;
   collapsed: boolean;
@@ -19,6 +21,8 @@ export function ShellTopbar({
   email,
   name,
   role,
+  position,
+  stores,
   moduleTitle,
   viewTitle,
   collapsed,
@@ -59,7 +63,7 @@ export function ShellTopbar({
       </div>
 
       <div className="flex-1" />
-      <UserMenu email={email} name={name} role={role} />
+      <UserMenu email={email} name={name} role={role} position={position} stores={stores} />
     </header>
   );
 }

@@ -5,6 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+type EmployeeContext = {
+  role: string;
+  nombres: string | null;
+  apellidos: string | null;
+  puesto: string | null;
+  tiendas: unknown;
+};
+
 export default async function ProtectedAppLayout({
   children,
 }: {
@@ -20,22 +28,23 @@ export default async function ProtectedAppLayout({
   const email =
     typeof data.claims.email === "string" ? data.claims.email : "usuario";
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role, is_active, personas(nombres, apellidos)")
-    .eq("user_id", data.claims.sub)
+  const { data: contextData, error: contextError } = await supabase
+    .rpc("current_employee_context")
     .maybeSingle();
+  const context = contextData as EmployeeContext | null;
+  const role = context?.role ?? null;
 
-  const person = Array.isArray(profile?.personas)
-    ? profile.personas[0]
-    : profile?.personas;
-  const name = profile?.is_active && person
-    ? [person.nombres, person.apellidos].filter(Boolean).join(" ")
-    : "Usuario";
-  const role = profile?.is_active && ["owner", "zonal", "supervisor"].includes(profile.role)
-    ? profile.role
-    : null;
+  const isValidRole = role === "owner" || role === "zonal" || role === "supervisor";
+  if (contextError || !context || !isValidRole) {
+    redirect("/login?next=/inicio");
+  }
 
-  if (!role) redirect("/login?next=/inicio");
-  return <AppShell email={email} name={name} role={role}>{children}</AppShell>;
+  const stores = Array.isArray(context.tiendas)
+    ? context.tiendas.filter((store): store is { id: string; nombre: string } =>
+      typeof store === "object" && store !== null && typeof store.id === "string" && typeof store.nombre === "string",
+    )
+    : [];
+  const name = [context.nombres, context.apellidos].filter(Boolean).join(" ") || "Usuario";
+
+  return <AppShell email={email} name={name} role={role as "owner" | "zonal" | "supervisor"} position={context.puesto || null} stores={stores}>{children}</AppShell>;
 }
