@@ -8,15 +8,18 @@ import {
 } from "@/features/personal/server/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { SFaceCapture } from "@/features/asistencia/components/sface-capture";
 
 type Person = {
   id: string;
-  puesto_id: string;
+  puesto_id?: string;
   nombres: string;
   apellidos: string;
-  documento: string | null;
-  telefono: string | null;
-  email: string | null;
+  puesto: string;
+  tiendas: { id: string; nombre: string }[];
+  documento?: string | null;
+  telefono?: string | null;
+  email?: string | null;
   is_active: boolean;
   puede_vender: boolean;
   estado_laboral: "activo" | "vacaciones";
@@ -110,42 +113,48 @@ function Switch({
 export function PersonalManagement({
   personas,
   puestos,
+  role,
 }: {
   personas: Person[];
   puestos: Job[];
+  role: "owner" | "supervisor";
 }) {
   const [editing, setEditing] = useState<Person | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [storeFilter, setStoreFilter] = useState("all");
+  const [positionFilter, setPositionFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
   const [pending, start] = useTransition();
 
-  const puestoById = useMemo(
-    () => new Map(puestos.map((j) => [j.id, j.nombre])),
-    [puestos],
-  );
+  const stores = useMemo(() => {
+    const unique = new Map<string, string>();
+    personas.forEach((person) => person.tiendas.forEach((store) => unique.set(store.id, store.nombre)));
+    return [...unique].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [personas]);
 
   const rows = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return personas;
-    return personas.filter((p) =>
-      `${p.nombres} ${p.apellidos} ${p.documento ?? ""} ${p.telefono ?? ""}`
-        .toLowerCase()
-        .includes(term),
-    );
-  }, [personas, query]);
+    return personas.filter((person) => {
+      const text = !term || `${person.nombres} ${person.apellidos} ${person.puesto}`.toLowerCase().includes(term);
+      const store = storeFilter === "all" || person.tiendas.some((item) => item.id === storeFilter);
+      const position = positionFilter === "all" || person.puesto === positionFilter;
+      const status = statusFilter === "all" || (statusFilter === "active" && person.is_active) || (statusFilter === "inactive" && !person.is_active) || (statusFilter === "available" && person.is_active && person.puede_vender && person.estado_laboral === "activo");
+      return text && store && position && status;
+    });
+  }, [personas, positionFilter, query, statusFilter, storeFilter]);
 
   const stats = useMemo(
     () => ({
-      total: personas.length,
-      activos: personas.filter((p) => p.is_active).length,
-      vendedores: personas.filter((p) => p.puede_vender).length,
-      vacaciones: personas.filter((p) => p.estado_laboral === "vacaciones")
-        .length,
+      total: rows.length,
+      activos: rows.filter((p) => p.is_active).length,
+      inactivos: rows.filter((p) => !p.is_active).length,
+      disponibles: rows.filter((p) => p.is_active && p.puede_vender && p.estado_laboral === "activo").length,
     }),
-    [personas],
+    [rows],
   );
 
   function openCreate() {
@@ -197,7 +206,7 @@ export function PersonalManagement({
             Administra a tu equipo, sus puestos y quién puede vender.
           </p>
         </div>
-        <Button onClick={openCreate}>+ Nueva persona</Button>
+        {role === "owner" ? <Button onClick={openCreate}>+ Nueva persona</Button> : null}
       </div>
 
       {/* Resumen */}
@@ -205,8 +214,8 @@ export function PersonalManagement({
         {[
           { label: "Total", value: stats.total, color: "text-slate-900" },
           { label: "Activos", value: stats.activos, color: "text-emerald-600" },
-          { label: "Pueden vender", value: stats.vendedores, color: "text-indigo-600" },
-          { label: "De vacaciones", value: stats.vacaciones, color: "text-amber-600" },
+          { label: "Inactivos", value: stats.inactivos, color: "text-rose-600" },
+          { label: "Disponibles para vender", value: stats.disponibles, color: "text-indigo-600" },
         ].map((s) => (
           <div
             key={s.label}
@@ -244,7 +253,7 @@ export function PersonalManagement({
 
       {/* Tabla */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
           <div className="relative w-full sm:max-w-sm">
             <svg
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -261,14 +270,17 @@ export function PersonalManagement({
             </svg>
             <input
               className="control-input w-full !pl-9"
-              placeholder="Buscar por DNI, nombre o celular..."
+              placeholder="Buscar por nombre o cargo..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <p className="text-sm text-slate-500">
-            {rows.length} {rows.length === 1 ? "persona" : "personas"}
-          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <select className="control-input" value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)}><option value="all">Todas las tiendas</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.nombre}</option>)}</select>
+            {role === "owner" ? <select className="control-input" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)}><option value="all">Todos los cargos</option>{puestos.map((job) => <option key={job.id} value={job.nombre}>{job.nombre}</option>)}</select> : null}
+            <select className="control-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option value="active">Activos</option><option value="inactive">Inactivos</option><option value="available">Disponibles para vender</option></select>
+          </div>
+          <p className="text-sm text-slate-500">{rows.length} {rows.length === 1 ? "persona" : "personas"}</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -276,11 +288,10 @@ export function PersonalManagement({
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Persona</th>
-                <th className="px-4 py-3 font-medium">Documento</th>
-                <th className="px-4 py-3 font-medium">Contacto</th>
                 <th className="px-4 py-3 font-medium">Puesto</th>
+                <th className="px-4 py-3 font-medium">Tienda</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                {role === "owner" ? <th className="px-4 py-3 text-right font-medium">Acciones</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -301,18 +312,12 @@ export function PersonalManagement({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {p.documento || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-slate-700">{p.telefono || "—"}</p>
-                    <p className="text-xs text-slate-500">{p.email || ""}</p>
-                  </td>
                   <td className="px-4 py-3">
                     <Badge tone="blue">
-                      {puestoById.get(p.puesto_id) ?? "Sin puesto"}
+                      {p.puesto || "Sin cargo registrado"}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3 text-slate-600">{p.tiendas.length ? p.tiendas.map((store) => store.nombre).join(", ") : "Sin tienda asignada"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
                       <Badge tone={p.is_active ? "green" : "red"}>
@@ -323,7 +328,7 @@ export function PersonalManagement({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  {role === "owner" ? <td className="px-4 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => openEdit(p)}
@@ -331,13 +336,13 @@ export function PersonalManagement({
                     >
                       Editar
                     </button>
-                  </td>
+                  </td> : null}
                 </tr>
               ))}
 
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center">
+                  <td colSpan={role === "owner" ? 5 : 4} className="px-4 py-14 text-center">
                     <p className="text-sm font-medium text-slate-700">
                       {query
                         ? "Sin resultados para tu búsqueda"
@@ -362,6 +367,7 @@ export function PersonalManagement({
         title={editing ? "Editar persona" : "Nueva persona"}
         onClose={() => setOpen(false)}
       >
+        {editing ? <section className="mb-5 space-y-2 rounded-xl border border-slate-200 p-3"><h3 className="text-sm font-semibold">Registro biométrico</h3>{editing.tiendas.map(store => <SFaceCapture key={store.id} personaId={editing.id} storeId={store.id} management />)}</section> : null}
         <form onSubmit={save} className="space-y-6">
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-800">

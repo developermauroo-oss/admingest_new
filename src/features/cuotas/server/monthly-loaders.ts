@@ -14,6 +14,7 @@ import type {
   MonthlyTrackingData,
 } from "@/features/cuotas/domain/monthly-types";
 import { createClient } from "@/lib/supabase/server";
+import { loadPersonalData } from "@/features/personal/server/loaders";
 import { loadTradeInSaleIds } from "@/features/cuotas/server/trade-in";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -143,32 +144,15 @@ function aggregateMetrics(rows: MetricRow[], tradeInSaleIds: Set<string>): Month
   return result;
 }
 
-async function loadPeople(supabase: SupabaseClient) {
-  const [peopleResult, puestosResult] = await Promise.all([
-    supabase
-      .from("personas")
-      .select(
-        "id, puesto_id, nombres, apellidos, is_active, puede_vender, estado_laboral",
-      )
-      .order("nombres")
-      .order("apellidos"),
-    supabase.from("puestos").select("id, nombre"),
-  ]);
-
-  const puestos = new Map(
-    (puestosResult.data ?? []).map((puesto) => [puesto.id, puesto.nombre]),
-  );
-
-  const allPeople = (peopleResult.data ?? []).map((person) => ({
+async function loadPeople() {
+  const { personas } = await loadPersonalData();
+  const allPeople = personas.map((person) => ({
     id: person.id,
-    name: (person.nombres + " " + person.apellidos).trim(),
-    role: puestos.get(person.puesto_id) ?? "Personal",
-    active: Boolean(person.is_active),
-    canSell: Boolean(person.puede_vender),
-    employmentState:
-      person.estado_laboral === "vacaciones"
-        ? ("vacaciones" as const)
-        : ("activo" as const),
+    name: [person.nombres, person.apellidos].filter(Boolean).join(" ") || "Sin nombre registrado",
+    role: person.puesto || "Sin cargo registrado",
+    active: person.is_active,
+    canSell: person.puede_vender,
+    employmentState: person.estado_laboral,
   }));
 
   const eligible: MonthlyEligiblePerson[] = allPeople
@@ -181,7 +165,7 @@ async function loadPeople(supabase: SupabaseClient) {
     }));
 
   return {
-    ok: !peopleResult.error && !puestosResult.error,
+    ok: true,
     allPeople,
     eligible,
   };
@@ -400,7 +384,7 @@ export async function loadMonthlyQuotaPage(
   const today = peruDateString();
   const [cyclesResult, people] = await Promise.all([
     loadCycleRows(supabase),
-    loadPeople(supabase),
+    loadPeople(),
   ]);
 
   if (cyclesResult.error || !people.ok) {
@@ -461,7 +445,7 @@ export async function loadMonthlyTracking(
   const today = peruDateString();
   const [cyclesResult, people] = await Promise.all([
     loadCycleRows(supabase),
-    loadPeople(supabase),
+    loadPeople(),
   ]);
 
   if (cyclesResult.error || !people.ok) {

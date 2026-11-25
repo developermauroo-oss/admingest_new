@@ -118,6 +118,7 @@ export const SHELL_NAVIGATION: NavigationSection[] = [
         children: [
           { key: "marcador", label: "Marcador", href: "/asistencia" },
           { key: "historial", label: "Historial", href: "/asistencia/historial" },
+          { key: "horario", label: "Horario", href: "/asistencia/horario" },
         ],
       },
       {
@@ -169,7 +170,7 @@ export const SHELL_NAVIGATION: NavigationSection[] = [
 export function navigationForRole(role: NavigationRole) {
   if (role === "owner") return [{ label: "Administración", items: [
     { key: "administracion", label: "Panel administrativo", icon: faGear, children: [{ key: "inicio", label: "Resumen", href: "/administracion" }] },
-    { key: "personal", label: "Personal", icon: faPeopleGroup, children: [{ key: "personal", label: "Personal", href: "/personal" }, { key: "usuarios", label: "Usuarios", href: "/configuraciones/usuarios" }] },
+    { key: "personal", label: "Personal", icon: faPeopleGroup, children: [{ key: "personal", label: "Personal", href: "/personal" }, { key: "biometria", label: "Evaluación biométrica", href: "/personal/biometria" }, { key: "usuarios", label: "Usuarios", href: "/configuraciones/usuarios" }, { key: "solicitudes", label: "Solicitudes de acceso", href: "/configuraciones/solicitudes" }] },
     { key: "organizacion", label: "Organización", icon: faGear, children: [{ key: "zonas", label: "Zonas", href: "/configuraciones/zonas" }, { key: "tiendas", label: "Tiendas", href: "/configuraciones/tiendas" }] },
   ] }];
   return SHELL_NAVIGATION;
@@ -182,6 +183,7 @@ function normalizedPath(pathname: string) {
 
 export function resolveNavigationState(pathname: string): NavigationState {
   const currentPath = normalizedPath(pathname);
+  if (currentPath === "/personal/biometria") return { activeModule: "personal", activeView: "biometria", moduleLabel: "Personal", viewLabel: "Evaluación biométrica" };
 
   if (currentPath === DEFAULT_APP_HREF) {
     return {
@@ -192,11 +194,8 @@ export function resolveNavigationState(pathname: string): NavigationState {
 
   for (const section of SHELL_NAVIGATION) {
     for (const item of section.items) {
-      const child = item.children.find(
-        (candidate) =>
-          candidate.href === currentPath ||
-          currentPath.startsWith(candidate.href + "/"),
-      );
+      const child = item.children.find((candidate) => candidate.href === currentPath)
+        ?? item.children.find((candidate) => currentPath.startsWith(candidate.href + "/"));
 
       if (child) {
         return {

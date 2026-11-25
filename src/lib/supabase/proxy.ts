@@ -48,8 +48,9 @@ export async function updateSession(request: NextRequest) {
   const authenticated = !error && Boolean(data?.claims?.sub);
   const pathname = request.nextUrl.pathname;
   const isLogin = pathname === "/login";
+  const isPublicAuth = isLogin || pathname === "/registrarse";
 
-  if (!authenticated && !isLogin) {
+  if (!authenticated && !isPublicAuth) {
     const url = request.nextUrl.clone();
     const nextPath = pathname + request.nextUrl.search;
 
@@ -71,9 +72,9 @@ export async function updateSession(request: NextRequest) {
       .select("role,is_active")
       .eq("user_id", data?.claims?.sub ?? "")
       .maybeSingle();
-    const ownerPaths = ["/administracion", "/personal", "/configuraciones/usuarios", "/configuraciones/puestos", "/configuraciones/zonas", "/configuraciones/tiendas"];
+    const ownerPaths = ["/administracion", "/personal", "/configuraciones/usuarios", "/configuraciones/solicitudes", "/configuraciones/puestos", "/configuraciones/zonas", "/configuraciones/tiendas"];
     const isOwnerPath = ownerPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
-    if (profile?.is_active && profile.role === "owner" && !isOwnerPath) {
+    if (profile?.is_active && profile.role === "owner" && !isOwnerPath && !pathname.startsWith("/api/")) {
       const url = request.nextUrl.clone();
       url.pathname = "/administracion";
       url.search = "";

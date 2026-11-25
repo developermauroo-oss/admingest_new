@@ -1,0 +1,15 @@
+"use client";
+
+import { useState } from "react";
+import { Modal } from "@/components/ui/modal";
+
+type RecordEvent = { event_type: string; occurred_at: string };
+const label: Record<string, string> = { entrada: "Ingreso", salida: "Salida", inicio_refrigerio: "Inicio break", fin_refrigerio: "Fin break" };
+const time = (value: string) => new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+const duration = (from: string, to: string) => { const total = Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60_000)); return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`; };
+
+export function AttendanceRecordsModal({ records }: { records: RecordEvent[] }) {
+  const [open, setOpen] = useState(false);
+  const ordered = [...records].sort((first, second) => first.occurred_at.localeCompare(second.occurred_at));
+  return <><button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">Ver registros ({ordered.length})</button><Modal open={open} title="Registro de marcaciones" description="Secuencia real del día y duración de cada tramo." onClose={() => setOpen(false)} maxWidthClassName="max-w-xl"><div className="overflow-hidden rounded-xl border border-slate-200"><table className="w-full text-left text-sm"><thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-300"><tr><th className="px-3 py-3">Hora</th><th className="px-3 py-3">Evento</th><th className="px-3 py-3">Tramo anterior</th></tr></thead><tbody className="divide-y divide-slate-100">{ordered.map((event, index) => { const previous = ordered[index - 1]; const isEntry = event.event_type === "entrada" || event.event_type === "fin_refrigerio"; const isBreak = isEntry && previous && (previous.event_type === "salida" || previous.event_type === "inicio_refrigerio"); const isWork = !isEntry && previous && (previous.event_type === "entrada" || previous.event_type === "fin_refrigerio"); return <tr key={`${event.event_type}-${event.occurred_at}`}><td className="px-3 py-3 font-semibold text-slate-900">{time(event.occurred_at)}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${event.event_type.includes("refrigerio") ? "bg-amber-100 text-amber-800" : "bg-indigo-100 text-indigo-800"}`}>{label[event.event_type] ?? event.event_type}</span></td><td className="px-3 py-3 text-slate-600">{isBreak ? <span className="font-medium text-amber-700">Break: {duration(previous.occurred_at, event.occurred_at)}</span> : isWork ? <span className="font-medium text-emerald-700">Trabajo: {duration(previous.occurred_at, event.occurred_at)}</span> : "—"}</td></tr>; })}{!ordered.length ? <tr><td colSpan={3} className="px-3 py-6 text-center text-slate-500">Sin registros.</td></tr> : null}</tbody></table></div></Modal></>;
+}

@@ -16,6 +16,8 @@ type AppShellProps = {
   email: string;
   name: string;
   role: "owner" | "zonal" | "supervisor" | null;
+  position: string | null;
+  stores: { id: string; nombre: string }[];
   children: ReactNode;
 };
 
@@ -24,7 +26,7 @@ type GroupOverride = {
   group: string | null;
 };
 
-export function AppShell({ email, name, role, children }: AppShellProps) {
+export function AppShell({ email, name, role, position, stores, children }: AppShellProps) {
   const pathname = usePathname();
   const navigation = resolveNavigationState(pathname);
   const navigationItems = navigationForRole(role);
@@ -116,6 +118,8 @@ export function AppShell({ email, name, role, children }: AppShellProps) {
             email={email}
             name={name}
             role={role}
+            position={position}
+            stores={stores}
             moduleTitle={navigation.moduleLabel}
             viewTitle={navigation.viewLabel}
             collapsed={collapsed}

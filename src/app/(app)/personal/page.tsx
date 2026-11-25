@@ -2,6 +2,6 @@ import { PersonalManagement } from "@/features/personal/components/personal-mana
 import { loadPersonalData } from "@/features/personal/server/loaders";
 
 export default async function PersonalPage() {
-  const { personas, puestos } = await loadPersonalData();
-  return <PersonalManagement personas={personas} puestos={puestos} />;
+  const { personas, puestos, role } = await loadPersonalData();
+  return <PersonalManagement personas={personas} puestos={puestos} role={role} />;
 }
